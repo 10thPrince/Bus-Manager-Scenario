@@ -20,7 +20,7 @@ const Login = () => {
             const res = await api.post('/auth/login', { userName, password })
             login(res.data?.user)
             toast.success(res.data?.message || 'Login successful')
-            navigate('/dashboard')
+            navigate('/buses')
         } catch (err) {
             toast.error(err.response?.data?.message || 'Login failed')
         } finally {

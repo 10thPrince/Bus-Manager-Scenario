@@ -28,53 +28,74 @@ const Navbar = () => {
 
 
     const navItems = [
-        { to: '/dashboard', label: 'Dashboard' },
         { to: '/buses', label: 'Buses' },
         { to: '/schedules', label: 'Schedules' },
         { to: '/bookings', label: 'Bookings' },
         { to: '/reports', label: 'Reports' },
     ]
 
-    return (
-        <div className='border-b border-gray-200 bg-white px-4 py-3 shadow-sm md:px-6'>
-            <div className='mx-auto flex max-w-7xl flex-col gap-3 md:flex-row md:items-center md:justify-between'>
-            <div className='flex items-center justify-between'>
-                <Link to={'/dashboard'} className='text-xl font-bold text-blue-700'>Y Bus Booking</Link>
-                {user?.role && (
-                    <span className='rounded-md bg-gray-100 px-2 py-1 text-sm font-medium capitalize text-gray-700 md:hidden'>
-                        {user.role}
-                    </span>
-                )}
-            </div>
+    const navLinkClass = ({ isActive }) =>
+        `block rounded-md px-3 py-2 font-semibold ${isActive ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'}`
 
-            <div className='flex flex-wrap items-center gap-3'>
-                <ul className='flex flex-wrap gap-2 text-sm font-semibold text-gray-700 md:text-base'>
+    return (
+        <>
+            <aside className='fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-gray-200 bg-white shadow-sm md:flex'>
+                <div className='border-b border-gray-200 px-5 py-5'>
+                    <Link to='/buses' className='text-xl font-bold text-blue-700'>Y Bus Booking</Link>
+                    {user?.role && (
+                        <p className='mt-2 text-sm font-medium capitalize text-gray-500'>{user.role}</p>
+                    )}
+                </div>
+
+                <nav className='flex-1 px-4 py-5' aria-label='Main navigation'>
+                    <ul className='space-y-2'>
+                        {navItems.map((item) => (
+                            <li key={item.to}>
+                                <NavLink to={item.to} className={navLinkClass}>
+                                    {item.label}
+                                </NavLink>
+                            </li>
+                        ))}
+                    </ul>
+                </nav>
+
+                <div className='border-t border-gray-200 p-4'>
+                    <button
+                        disabled={loading}
+                        onClick={handleLogout}
+                        className='w-full rounded-md bg-red-600 px-4 py-2 font-semibold text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:bg-red-300'
+                    >
+                        {loading ? 'Logging out...' : 'Logout'}
+                    </button>
+                </div>
+            </aside>
+
+            <header className='border-b border-gray-200 bg-white px-4 py-3 shadow-sm md:hidden'>
+                <div className='mb-3 flex items-center justify-between gap-3'>
+                    <Link to='/buses' className='text-lg font-bold text-blue-700'>Y Bus Booking</Link>
+                    {user?.role && (
+                        <span className='rounded-md bg-gray-100 px-2 py-1 text-sm font-medium capitalize text-gray-700'>
+                            {user.role}
+                        </span>
+                    )}
+                </div>
+
+                <nav className='flex gap-2 overflow-x-auto pb-1' aria-label='Mobile navigation'>
                     {navItems.map((item) => (
-                        <li key={item.to}>
-                            <NavLink
-                                to={item.to}
-                                className={({ isActive }) =>
-                                    `block rounded-md px-3 py-2 ${isActive ? 'bg-blue-600 text-white' : 'hover:bg-gray-100'}`
-                                }
-                            >
-                                {item.label}
-                            </NavLink>
-                        </li>
+                        <NavLink key={item.to} to={item.to} className={navLinkClass}>
+                            {item.label}
+                        </NavLink>
                     ))}
-                </ul>
-            </div>
-            <div className='flex items-center gap-3'>
-                {user?.role && (
-                    <span className='hidden rounded-md bg-gray-100 px-3 py-2 text-sm font-medium capitalize text-gray-700 md:inline-flex'>
-                        {user.role}
-                    </span>
-                )}
-                <button disabled={loading} onClick={handleLogout} className='rounded-md bg-red-600 px-4 py-2 font-semibold text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:bg-red-300'>
-                    {loading ? "Logging out...":  "Logout"}
-                </button>
-            </div>
-            </div>
-        </div>
+                    <button
+                        disabled={loading}
+                        onClick={handleLogout}
+                        className='shrink-0 rounded-md bg-red-600 px-3 py-2 font-semibold text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:bg-red-300'
+                    >
+                        {loading ? '...' : 'Logout'}
+                    </button>
+                </nav>
+            </header>
+        </>
     )
 }
 

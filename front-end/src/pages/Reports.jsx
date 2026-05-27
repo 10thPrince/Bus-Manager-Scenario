@@ -15,6 +15,7 @@ const Reports = () => {
     const [buses, setBuses] = useState([])
     const [schedules, setSchedules] = useState([])
     const [bookings, setBookings] = useState([])
+    const [selectedPassengerRoute, setSelectedPassengerRoute] = useState('')
     const [loading, setLoading] = useState(false)
 
     useEffect(() => {
@@ -107,11 +108,25 @@ const Reports = () => {
         })
     }, [buses, schedules, bookings])
 
+    const routeOptions = useMemo(() => {
+        return [...new Set(schedules.map((schedule) => schedule.RouteName).filter(Boolean))]
+            .sort((first, second) => first.localeCompare(second))
+    }, [schedules])
+
+    const passengerBookings = useMemo(() => {
+        if (!selectedPassengerRoute) return bookings
+
+        return bookings.filter((booking) => {
+            const schedule = getSchedule(booking.ScheduleID)
+            return schedule?.RouteName === selectedPassengerRoute
+        })
+    }, [bookings, getSchedule, selectedPassengerRoute])
+
     const recentBookings = useMemo(() => {
-        return [...bookings]
+        return [...passengerBookings]
             .sort((first, second) => new Date(second.BookingDate) - new Date(first.BookingDate))
             .slice(0, 10)
-    }, [bookings])
+    }, [passengerBookings])
 
     const summaryCards = [
         { label: 'Total Revenue', value: totalRevenue.toFixed(2) },
@@ -123,7 +138,7 @@ const Reports = () => {
     return (
         <div className='min-h-screen bg-gray-100'>
             <Navbar />
-            <main className='mx-auto max-w-7xl px-4 py-6'>
+            <main className='px-4 py-6 md:ml-64 md:px-6 lg:px-8'>
                 <div className='mb-6'>
                     <h1 className='text-2xl font-bold text-gray-900'>Reports</h1>
                     <p className='text-gray-600'>Review route occupancy, bus use, booking activity, and paid revenue.</p>
@@ -219,8 +234,27 @@ const Reports = () => {
                     </section>
 
                     <section className='overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm'>
-                        <div className='border-b border-gray-200 px-5 py-4'>
-                            <h2 className='text-lg font-semibold text-gray-900'>Recent Bookings</h2>
+                        <div className='flex flex-col gap-4 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between'>
+                            <div>
+                                <h2 className='text-lg font-semibold text-gray-900'>Passenger Bookings</h2>
+                                <p className='text-sm text-gray-500'>
+                                    {loading ? 'Loading passengers...' : `${passengerBookings.length} passenger${passengerBookings.length === 1 ? '' : 's'}${selectedPassengerRoute ? ` on ${selectedPassengerRoute}` : ''}`}
+                                </p>
+                            </div>
+                            <div className='flex flex-col gap-2 sm:min-w-56'>
+                                <label htmlFor='passengerRouteFilter' className='text-sm font-medium text-gray-700'>Filter by route</label>
+                                <select
+                                    id='passengerRouteFilter'
+                                    value={selectedPassengerRoute}
+                                    onChange={(e) => setSelectedPassengerRoute(e.target.value)}
+                                    className='rounded-md border border-gray-300 px-3 py-2 outline-none focus:border-blue-500'
+                                >
+                                    <option value=''>All routes</option>
+                                    {routeOptions.map((route) => (
+                                        <option key={route} value={route}>{route}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
                         <div className='overflow-x-auto'>
                             <table className='w-full text-left'>
@@ -237,7 +271,7 @@ const Reports = () => {
                                     {loading ? (
                                         <tr><td className='px-5 py-4 text-gray-500' colSpan='5'>Loading booking report...</td></tr>
                                     ) : recentBookings.length === 0 ? (
-                                        <tr><td className='px-5 py-4 text-gray-500' colSpan='5'>No bookings found.</td></tr>
+                                        <tr><td className='px-5 py-4 text-gray-500' colSpan='5'>{selectedPassengerRoute ? 'No passenger bookings found for this route.' : 'No bookings found.'}</td></tr>
                                     ) : (
                                         recentBookings.map((booking) => {
                                             const schedule = getSchedule(booking.ScheduleID)

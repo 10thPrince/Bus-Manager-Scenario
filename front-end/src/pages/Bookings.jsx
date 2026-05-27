@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'react-toastify'
 import { api } from '../api/axios'
 import Navbar from '../components/Navbar'
@@ -26,6 +26,7 @@ const normalizeTime = (value) => {
 const Bookings = () => {
     const [bookings, setBookings] = useState([])
     const [schedules, setSchedules] = useState([])
+    const [buses, setBuses] = useState([])
     const [form, setForm] = useState(initialForm)
     const [editingBookingId, setEditingBookingId] = useState(null)
     const [loading, setLoading] = useState(false)
@@ -53,9 +54,19 @@ const Bookings = () => {
         }
     }
 
+    const fetchBuses = async () => {
+        try {
+            const res = await api.get('/bus/getAll')
+            setBuses(res.data?.data || [])
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to load buses')
+        }
+    }
+
     useEffect(() => {
         fetchBookings()
         fetchSchedules()
+        fetchBuses()
     }, [])
 
     const getSchedule = (id) => {
@@ -69,6 +80,29 @@ const Bookings = () => {
             : `Schedule #${id}`
     }
 
+    const selectedSchedule = useMemo(() => {
+        return schedules.find((schedule) => String(schedule.ScheduleID) === String(form.scheduleId))
+    }, [form.scheduleId, schedules])
+
+    const selectedBus = useMemo(() => {
+        return buses.find((bus) => String(bus.BusID) === String(selectedSchedule?.BusID))
+    }, [buses, selectedSchedule])
+
+    const seats = useMemo(() => {
+        const totalSeats = Number(selectedBus?.TotalSeats || 0)
+        return Array.from({ length: totalSeats }, (_, index) => index + 1)
+    }, [selectedBus])
+
+    const bookedSeats = useMemo(() => {
+        return new Set(
+            bookings
+                .filter((booking) => String(booking.ScheduleID) === String(form.scheduleId))
+                .filter((booking) => String(booking.BookingID) !== String(editingBookingId))
+                .filter((booking) => String(booking.PaymentStatus).toLowerCase() !== 'cancelled')
+                .map((booking) => Number(booking.SeatNumber))
+        )
+    }, [bookings, editingBookingId, form.scheduleId])
+
     const resetForm = () => {
         setForm(initialForm)
         setEditingBookingId(null)
@@ -76,6 +110,10 @@ const Bookings = () => {
 
     const updateForm = (field, value) => {
         setForm((current) => ({ ...current, [field]: value }))
+    }
+
+    const handleScheduleChange = (scheduleId) => {
+        setForm((current) => ({ ...current, scheduleId, seatNumber: '' }))
     }
 
     const handleSubmit = async (e) => {
@@ -135,7 +173,7 @@ const Bookings = () => {
     return (
         <div className='min-h-screen bg-gray-100'>
             <Navbar />
-            <main className='mx-auto max-w-7xl px-4 py-6'>
+            <main className='px-4 py-6 md:ml-64 md:px-6 lg:px-8'>
                 <div className='mb-6'>
                     <h1 className='text-2xl font-bold text-gray-900'>Bookings</h1>
                     <p className='text-gray-600'>Create and manage passenger bookings for available schedules.</p>
@@ -148,7 +186,7 @@ const Bookings = () => {
                         <div className='grid gap-4 sm:grid-cols-2'>
                             <div className='flex flex-col gap-2 sm:col-span-2'>
                                 <label htmlFor='scheduleId' className='font-medium text-gray-700'>Schedule</label>
-                                <select id='scheduleId' value={form.scheduleId} onChange={(e) => updateForm('scheduleId', e.target.value)} className='rounded-md border border-gray-300 px-3 py-2 outline-none focus:border-blue-500' required>
+                                <select id='scheduleId' value={form.scheduleId} onChange={(e) => handleScheduleChange(e.target.value)} className='rounded-md border border-gray-300 px-3 py-2 outline-none focus:border-blue-500' required>
                                     <option value=''>Select schedule</option>
                                     {schedules.map((schedule) => (
                                         <option key={schedule.ScheduleID} value={schedule.ScheduleID}>
@@ -157,6 +195,61 @@ const Bookings = () => {
                                     ))}
                                 </select>
                             </div>
+
+                            <div className='sm:col-span-2'>
+                                <div className='mb-2 flex items-center justify-between gap-3'>
+                                    <label className='font-medium text-gray-700'>Seat Map</label>
+                                    {form.seatNumber && (
+                                        <span className='rounded-md bg-blue-50 px-2 py-1 text-sm font-semibold text-blue-700'>
+                                            Seat {form.seatNumber}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {!form.scheduleId ? (
+                                    <div className='rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-4 text-sm text-gray-500'>
+                                        Select a schedule to view available seats.
+                                    </div>
+                                ) : seats.length === 0 ? (
+                                    <div className='rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-4 text-sm text-gray-500'>
+                                        No bus capacity found for this schedule.
+                                    </div>
+                                ) : (
+                                    <div className='rounded-md border border-gray-200 bg-gray-50 p-3'>
+                                        <div className='mb-3 flex flex-wrap gap-3 text-xs font-medium text-gray-600'>
+                                            <span className='flex items-center gap-1'><span className='h-3 w-3 rounded bg-white ring-1 ring-gray-300'></span>Available</span>
+                                            <span className='flex items-center gap-1'><span className='h-3 w-3 rounded bg-blue-600'></span>Selected</span>
+                                            <span className='flex items-center gap-1'><span className='h-3 w-3 rounded bg-gray-300'></span>Booked</span>
+                                        </div>
+                                        <div className='grid grid-cols-5 gap-2 sm:grid-cols-6'>
+                                            {seats.map((seat) => {
+                                                const isBooked = bookedSeats.has(seat)
+                                                const isSelected = Number(form.seatNumber) === seat
+
+                                                return (
+                                                    <button
+                                                        key={seat}
+                                                        type='button'
+                                                        disabled={isBooked}
+                                                        onClick={() => updateForm('seatNumber', String(seat))}
+                                                        className={`aspect-square rounded-md border text-sm font-semibold ${
+                                                            isSelected
+                                                                ? 'border-blue-600 bg-blue-600 text-white'
+                                                                : isBooked
+                                                                    ? 'cursor-not-allowed border-gray-300 bg-gray-300 text-gray-500'
+                                                                    : 'border-gray-300 bg-white text-gray-700 hover:border-blue-500 hover:bg-blue-50'
+                                                        }`}
+                                                        aria-label={`Seat ${seat}${isBooked ? ' booked' : ''}`}
+                                                    >
+                                                        {seat}
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
                             <div className='flex flex-col gap-2 sm:col-span-2'>
                                 <label htmlFor='passengerName' className='font-medium text-gray-700'>Passenger Name</label>
                                 <input id='passengerName' value={form.passengerName} onChange={(e) => updateForm('passengerName', e.target.value)} className='rounded-md border border-gray-300 px-3 py-2 outline-none focus:border-blue-500' placeholder='Passenger full name' required />
@@ -174,10 +267,6 @@ const Bookings = () => {
                                 <input id='passengerPhone' type='number' min='0' value={form.passengerPhone} onChange={(e) => updateForm('passengerPhone', e.target.value)} className='rounded-md border border-gray-300 px-3 py-2 outline-none focus:border-blue-500' placeholder='0780000000' required />
                             </div>
                             <div className='flex flex-col gap-2'>
-                                <label htmlFor='seatNumber' className='font-medium text-gray-700'>Seat Number</label>
-                                <input id='seatNumber' type='number' min='1' value={form.seatNumber} onChange={(e) => updateForm('seatNumber', e.target.value)} className='rounded-md border border-gray-300 px-3 py-2 outline-none focus:border-blue-500' placeholder='12' required />
-                            </div>
-                            <div className='flex flex-col gap-2'>
                                 <label htmlFor='paymentStatus' className='font-medium text-gray-700'>Payment Status</label>
                                 <select id='paymentStatus' value={form.paymentStatus} onChange={(e) => updateForm('paymentStatus', e.target.value)} className='rounded-md border border-gray-300 px-3 py-2 outline-none focus:border-blue-500' required>
                                     <option value='Pending'>Pending</option>
@@ -192,7 +281,7 @@ const Bookings = () => {
                         </div>
 
                         <div className='mt-5 flex gap-3'>
-                            <button type='submit' disabled={saving} className='flex-1 rounded-md bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300'>
+                            <button type='submit' disabled={saving || !form.seatNumber} className='flex-1 rounded-md bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300'>
                                 {saving ? 'Saving...' : editingBookingId ? 'Update Booking' : 'Save Booking'}
                             </button>
                             {editingBookingId && (

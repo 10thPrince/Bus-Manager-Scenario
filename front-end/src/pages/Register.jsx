@@ -21,6 +21,7 @@ const Register = () => {
             navigate('/login')
         } catch (err) {
             toast.error(err.response?.data?.message || 'Registration failed')
+            console.log(err.response?.data)
         } finally {
             setLoading(false)
         }
