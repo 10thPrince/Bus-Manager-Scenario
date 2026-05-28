@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'react-toastify'
 import { api } from '../api/axios'
 import Navbar from '../components/Navbar'
+import { useAuth } from '../context/AuthContext'
 
 const normalizeTime = (value) => {
     return value ? String(value).slice(0, 5) : ''
@@ -17,17 +18,24 @@ const Reports = () => {
     const [bookings, setBookings] = useState([])
     const [selectedPassengerRoute, setSelectedPassengerRoute] = useState('')
     const [loading, setLoading] = useState(false)
+    const { user } = useAuth()
+    const isAdmin = user?.role === 'admin'
 
     useEffect(() => {
         const fetchReports = async () => {
             setLoading(true)
             try {
+                if (!isAdmin) {
+                    const bookingRes = await api.get('/booking/getAll')
+                    setBookings(bookingRes.data?.data || [])
+                    return
+                }
+
                 const [busRes, scheduleRes, bookingRes] = await Promise.all([
                     api.get('/bus/getAll'),
                     api.get('/schedule/getAll'),
                     api.get('/booking/getAll'),
                 ])
-
                 setBuses(busRes.data?.data || [])
                 setSchedules(scheduleRes.data?.data || [])
                 setBookings(bookingRes.data?.data || [])
@@ -39,7 +47,7 @@ const Reports = () => {
         }
 
         fetchReports()
-    }, [])
+    }, [isAdmin])
 
     const getBus = useCallback((id) => {
         return buses.find((bus) => String(bus.BusID) === String(id))
@@ -128,12 +136,84 @@ const Reports = () => {
             .slice(0, 10)
     }, [passengerBookings])
 
+    const userSummaryCards = useMemo(() => {
+        const paid = bookings.filter((booking) => String(booking.PaymentStatus).toLowerCase() === 'paid').length
+        const pending = bookings.filter((booking) => String(booking.PaymentStatus).toLowerCase() === 'pending').length
+        const cancelled = bookings.filter((booking) => String(booking.PaymentStatus).toLowerCase() === 'cancelled').length
+
+        return [
+            { label: 'My Bookings', value: bookings.length },
+            { label: 'Paid', value: paid },
+            { label: 'Pending', value: pending },
+            { label: 'Cancelled', value: cancelled },
+        ]
+    }, [bookings])
+
     const summaryCards = [
         { label: 'Total Revenue', value: totalRevenue.toFixed(2) },
         { label: 'Total Buses', value: buses.length },
         { label: 'Total Seats', value: totalSeats },
         { label: 'Pending Payments', value: pendingBookings.length },
     ]
+
+    if (!isAdmin) {
+        return (
+            <div className='min-h-screen bg-gray-100'>
+                <Navbar />
+                <main className='px-4 py-6 md:ml-64 md:px-6 lg:px-8'>
+                    <div className='mb-6'>
+                        <h1 className='text-2xl font-bold text-gray-900'>My Booking Report</h1>
+                        <p className='text-gray-600'>Review your own booking activity.</p>
+                    </div>
+
+                    <section className='mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
+                        {userSummaryCards.map((card) => (
+                            <div key={card.label} className='rounded-lg border border-gray-200 bg-white p-5 shadow-sm'>
+                                <p className='text-sm font-medium uppercase text-gray-500'>{card.label}</p>
+                                <p className='mt-3 text-3xl font-bold text-gray-900'>{loading ? '...' : card.value}</p>
+                            </div>
+                        ))}
+                    </section>
+
+                    <section className='overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm'>
+                        <div className='border-b border-gray-200 px-5 py-4'>
+                            <h2 className='text-lg font-semibold text-gray-900'>My Bookings</h2>
+                        </div>
+                        <div className='overflow-x-auto'>
+                            <table className='w-full text-left'>
+                                <thead className='bg-gray-50 text-sm uppercase text-gray-500'>
+                                    <tr>
+                                        <th className='px-5 py-3'>Passenger</th>
+                                        <th className='px-5 py-3'>Route</th>
+                                        <th className='px-5 py-3'>Seat</th>
+                                        <th className='px-5 py-3'>Payment</th>
+                                        <th className='px-5 py-3'>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody className='divide-y divide-gray-100'>
+                                    {loading ? (
+                                        <tr><td className='px-5 py-4 text-gray-500' colSpan='5'>Loading your bookings...</td></tr>
+                                    ) : bookings.length === 0 ? (
+                                        <tr><td className='px-5 py-4 text-gray-500' colSpan='5'>No bookings found.</td></tr>
+                                    ) : (
+                                        bookings.map((booking) => (
+                                            <tr key={booking.BookingID} className='text-gray-700'>
+                                                <td className='px-5 py-4 font-medium text-gray-900'>{booking.PassengerName}</td>
+                                                <td className='px-5 py-4'>{booking.RouteName || `Schedule #${booking.ScheduleID}`}</td>
+                                                <td className='px-5 py-4'>{booking.SeatNumber}</td>
+                                                <td className='px-5 py-4'>{booking.PaymentStatus}</td>
+                                                <td className='px-5 py-4'>{formatDate(booking.BookingDate)}</td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                </main>
+            </div>
+        )
+    }
 
     return (
         <div className='min-h-screen bg-gray-100'>

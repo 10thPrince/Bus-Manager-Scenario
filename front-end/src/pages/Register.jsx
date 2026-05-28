@@ -64,7 +64,7 @@ const Register = () => {
                         />
                     </div>
 
-                    <div className='flex flex-col gap-2'>
+                    {/* <div className='flex flex-col gap-2'>
                         <label htmlFor='role' className='font-medium text-gray-700'>Role</label>
                         <select
                             id='role'
@@ -75,7 +75,7 @@ const Register = () => {
                             <option value='user'>User</option>
                             <option value='admin'>Admin</option>
                         </select>
-                    </div>
+                    </div> */}
 
                     <button
                         type='submit'

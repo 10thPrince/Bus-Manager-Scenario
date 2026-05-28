@@ -17,10 +17,12 @@ const App = () => {
         <Route path='/register' element={<Register />}/>
         <Route path='/' element={<Login />}/>
         <Route element={<ProtectedRoutes />}>
-          <Route path='/buses' element={<Buses />} />
-          <Route path='/schedules' element={<Schedules />} />
           <Route path='/bookings' element={<Bookings />} />
           <Route path='/reports' element={<Reports />} />
+        </Route>
+        <Route element={<ProtectedRoutes allowedRoles={['admin']} />}>
+          <Route path='/buses' element={<Buses />} />
+          <Route path='/schedules' element={<Schedules />} />
         </Route>
       </Routes>
     </>

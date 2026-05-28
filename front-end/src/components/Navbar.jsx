@@ -27,11 +27,16 @@ const Navbar = () => {
     }
 
 
-    const navItems = [
+    const isAdmin = user?.role === 'admin'
+    const homePath = isAdmin ? '/buses' : '/bookings'
+
+    const navItems = isAdmin ? [
         { to: '/buses', label: 'Buses' },
         { to: '/schedules', label: 'Schedules' },
         { to: '/bookings', label: 'Bookings' },
         { to: '/reports', label: 'Reports' },
+    ] : [
+        { to: '/bookings', label: 'Bookings' },
     ]
 
     const navLinkClass = ({ isActive }) =>
@@ -41,7 +46,7 @@ const Navbar = () => {
         <>
             <aside className='fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-gray-200 bg-white shadow-sm md:flex'>
                 <div className='border-b border-gray-200 px-5 py-5'>
-                    <Link to='/buses' className='text-xl font-bold text-blue-700'>Y Bus Booking</Link>
+                    <Link to={homePath} className='text-xl font-bold text-blue-700'>Y Bus Booking</Link>
                     {user?.role && (
                         <p className='mt-2 text-sm font-medium capitalize text-gray-500'>{user.role}</p>
                     )}
@@ -72,7 +77,7 @@ const Navbar = () => {
 
             <header className='border-b border-gray-200 bg-white px-4 py-3 shadow-sm md:hidden'>
                 <div className='mb-3 flex items-center justify-between gap-3'>
-                    <Link to='/buses' className='text-lg font-bold text-blue-700'>Y Bus Booking</Link>
+                    <Link to={homePath} className='text-lg font-bold text-blue-700'>Y Bus Booking</Link>
                     {user?.role && (
                         <span className='rounded-md bg-gray-100 px-2 py-1 text-sm font-medium capitalize text-gray-700'>
                             {user.role}

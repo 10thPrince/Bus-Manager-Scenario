@@ -53,7 +53,37 @@ export const createSchedule = (req, res) => {
 
 export const getAllSchedules = (req, res) => {
     try {
-        const q = "SELECT * FROM yk_schedules";
+        let q = `
+            SELECT
+                s.*,
+                b.PlateNumber,
+                b.TotalSeats,
+                b.BusType,
+                COALESCE((
+                    SELECT COUNT(*)
+                    FROM yk_bookings bk
+                    WHERE bk.ScheduleID = s.ScheduleID
+                    AND LOWER(COALESCE(bk.PaymentStatus, '')) != 'cancelled'
+                ), 0) AS BookedSeats
+            FROM yk_schedules s
+            INNER JOIN yk_buses b ON b.BusID = s.BusID
+        `;
+
+        if (req.session.user) {
+            q += `
+                WHERE LOWER(COALESCE(s.ScheduleStatus, '')) = 'active'
+                AND s.DepartureTime > CURTIME()
+                AND (
+                    SELECT COUNT(*)
+                    FROM yk_bookings bk
+                    WHERE bk.ScheduleID = s.ScheduleID
+                    AND LOWER(COALESCE(bk.PaymentStatus, '')) != 'cancelled'
+                ) < b.TotalSeats
+            `;
+        }
+
+        q += " ORDER BY s.DepartureTime ASC"
+
         db.query(q, (err, result) => {
             if (err) {
                 return res.status(400).json({

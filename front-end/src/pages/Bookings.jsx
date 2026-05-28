@@ -23,10 +23,20 @@ const normalizeTime = (value) => {
     return value ? String(value).slice(0, 5) : ''
 }
 
+const currentTime = () => new Date().toTimeString().slice(0, 5)
+
+const isScheduleAvailable = (schedule) => {
+    const totalSeats = Number(schedule.TotalSeats || 0)
+    const bookedSeats = Number(schedule.BookedSeats || 0)
+    return String(schedule.ScheduleStatus || '').toLowerCase() === 'active'
+        && normalizeTime(schedule.DepartureTime) > currentTime()
+        && totalSeats > bookedSeats
+}
+
 const Bookings = () => {
     const [bookings, setBookings] = useState([])
     const [schedules, setSchedules] = useState([])
-    const [buses, setBuses] = useState([])
+    const [bookedSeatRows, setBookedSeatRows] = useState([])
     const [form, setForm] = useState(initialForm)
     const [editingBookingId, setEditingBookingId] = useState(null)
     const [loading, setLoading] = useState(false)
@@ -54,54 +64,60 @@ const Bookings = () => {
         }
     }
 
-    const fetchBuses = async () => {
+    const fetchBookedSeats = async (scheduleId) => {
+        if (!scheduleId) {
+            setBookedSeatRows([])
+            return
+        }
+
         try {
-            const res = await api.get('/bus/getAll')
-            setBuses(res.data?.data || [])
+            const res = await api.get(`/booking/bookedSeats/${scheduleId}`)
+            setBookedSeatRows(res.data?.data || [])
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Failed to load buses')
+            toast.error(err.response?.data?.message || 'Failed to load booked seats')
         }
     }
 
     useEffect(() => {
         fetchBookings()
         fetchSchedules()
-        fetchBuses()
     }, [])
+
+    useEffect(() => {
+        fetchBookedSeats(form.scheduleId)
+    }, [form.scheduleId])
 
     const getSchedule = (id) => {
         return schedules.find((schedule) => String(schedule.ScheduleID) === String(id))
     }
 
-    const getScheduleLabel = (id) => {
-        const schedule = getSchedule(id)
-        return schedule
-            ? `${schedule.RouteName} - ${normalizeTime(schedule.DepartureTime)}`
-            : `Schedule #${id}`
+    const getBookingScheduleLabel = (booking) => {
+        const schedule = getSchedule(booking.ScheduleID)
+        if (schedule) return `${schedule.RouteName} - ${normalizeTime(schedule.DepartureTime)}`
+        if (booking.RouteName) return `${booking.RouteName} - ${normalizeTime(booking.DepartureTime)}`
+        return `Schedule #${booking.ScheduleID}`
     }
 
-    const selectedSchedule = useMemo(() => {
-        return schedules.find((schedule) => String(schedule.ScheduleID) === String(form.scheduleId))
-    }, [form.scheduleId, schedules])
+    const availableSchedules = useMemo(() => {
+        return schedules.filter(isScheduleAvailable)
+    }, [schedules])
 
-    const selectedBus = useMemo(() => {
-        return buses.find((bus) => String(bus.BusID) === String(selectedSchedule?.BusID))
-    }, [buses, selectedSchedule])
+    const selectedSchedule = useMemo(() => {
+        return availableSchedules.find((schedule) => String(schedule.ScheduleID) === String(form.scheduleId))
+    }, [availableSchedules, form.scheduleId])
 
     const seats = useMemo(() => {
-        const totalSeats = Number(selectedBus?.TotalSeats || 0)
+        const totalSeats = Number(selectedSchedule?.TotalSeats || 0)
         return Array.from({ length: totalSeats }, (_, index) => index + 1)
-    }, [selectedBus])
+    }, [selectedSchedule])
 
     const bookedSeats = useMemo(() => {
         return new Set(
-            bookings
-                .filter((booking) => String(booking.ScheduleID) === String(form.scheduleId))
+            bookedSeatRows
                 .filter((booking) => String(booking.BookingID) !== String(editingBookingId))
-                .filter((booking) => String(booking.PaymentStatus).toLowerCase() !== 'cancelled')
                 .map((booking) => Number(booking.SeatNumber))
         )
-    }, [bookings, editingBookingId, form.scheduleId])
+    }, [bookedSeatRows, editingBookingId])
 
     const resetForm = () => {
         setForm(initialForm)
@@ -134,6 +150,7 @@ const Bookings = () => {
             toast.success(res.data?.message || `Booking ${editingBookingId ? 'updated' : 'created'} successfully`)
             resetForm()
             fetchBookings()
+            fetchSchedules()
         } catch (err) {
             toast.error(err.response?.data?.message || `Failed to ${editingBookingId ? 'update' : 'create'} booking`)
         } finally {
@@ -188,12 +205,15 @@ const Bookings = () => {
                                 <label htmlFor='scheduleId' className='font-medium text-gray-700'>Schedule</label>
                                 <select id='scheduleId' value={form.scheduleId} onChange={(e) => handleScheduleChange(e.target.value)} className='rounded-md border border-gray-300 px-3 py-2 outline-none focus:border-blue-500' required>
                                     <option value=''>Select schedule</option>
-                                    {schedules.map((schedule) => (
+                                    {availableSchedules.map((schedule) => (
                                         <option key={schedule.ScheduleID} value={schedule.ScheduleID}>
-                                            {schedule.RouteName} - {normalizeTime(schedule.DepartureTime)} - {schedule.TicketPrice}
+                                            {schedule.RouteName} - {normalizeTime(schedule.DepartureTime)} - {schedule.TicketPrice} ({Number(schedule.TotalSeats || 0) - Number(schedule.BookedSeats || 0)} seats left)
                                         </option>
                                     ))}
                                 </select>
+                                {availableSchedules.length === 0 && (
+                                    <p className='text-sm text-gray-500'>No available schedules right now.</p>
+                                )}
                             </div>
 
                             <div className='sm:col-span-2'>
@@ -318,7 +338,7 @@ const Bookings = () => {
                                                     <p className='font-medium text-gray-900'>{booking.PassengerName}</p>
                                                     <p className='text-sm text-gray-500'>{booking.PassengerGender} - {booking.PassengerPhone}</p>
                                                 </td>
-                                                <td className='px-5 py-4'>{getScheduleLabel(booking.ScheduleID)}</td>
+                                                <td className='px-5 py-4'>{getBookingScheduleLabel(booking)}</td>
                                                 <td className='px-5 py-4'>{booking.SeatNumber}</td>
                                                 <td className='px-5 py-4'>{booking.PaymentStatus}</td>
                                                 <td className='px-5 py-4'>{toDateInput(booking.BookingDate)}</td>
